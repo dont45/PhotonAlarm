@@ -927,7 +927,7 @@ void Notifier::pushAlarm(char* msg) {
     Spark.publish(webhook_id, event_message, 60, PRIVATE);
   }
 }
-Notifier notify("safe-motion", &sensor);
+Notifier notify("pushover-entry", &sensor);
 
 void setup() {
   pinMode(ledStatus, OUTPUT);
