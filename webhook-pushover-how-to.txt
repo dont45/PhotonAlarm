@@ -1,0 +1,40 @@
+create pushover.json and add your tokens as shown
+then create the particle webhook:
+
+particle webhook create pushover.json
+
+You should see the following output:
+
+Sending webhook request  { uri: 'https://api.particle.io/v1/webhooks',
+  method: 'POST',
+  json: true,
+  form: 
+   { event: 'office-motion',
+     url: 'https://api.pushover.net/1/messages.json',
+     deviceid: undefined,
+     access_token: '12341234123412341234123412341234',
+     requestType: 'POST',
+     headers: undefined,
+     json: undefined,
+     query: 
+      { user: '23452345234523452345234523452345',
+        token: '34563456345634563456345634563456',
+        title: 'MOTION',
+        message: '{{SPARK_EVENT_VALUE}}' },
+     auth: undefined,
+     mydevices: true } }
+Successfully created webhook!
+
+This webhook is used by class Notifier (file:Alarm-Pushover.cpp):
+  Notifier(char *event_name, Sensor *s) {
+    // move upd to Alarm class ???
+class Notifier {
+public:
+...
+void Notifier::sendMessage(char* msg) {
+  ...
+  Spark.publish(webhook_id, event_message, 60, PRIVATE);
+
+}
+// the class instance:
+Notifier notify("safe-motion", &sensor);

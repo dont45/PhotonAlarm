@@ -20,28 +20,31 @@
 
 #ifndef __UTIL_H__
 #define __UTIL_H__
-typedef enum {UNDEFINED=0, SWITCH=1, OW_SENSOR=2, OW_RELAY=3, OW_THERMOMETER=4,
-              MCP9808_THERMOMETER=5, USER_KEY=6, MASTER_KEY=7} SENSOR_TYPE;
+
+#define HALT while(1)
+typedef enum {UNDEFINED=0, SWITCH=1, OW_SENSOR=2, OW_INDICATOR=3, OW_RELAY=4, OW_THERMOMETER=5,
+              MCP9808_THERMOMETER=6, USER_KEY=7, MASTER_KEY=8} SENSOR_TYPE;
 typedef enum {DEV_MISSING=0, DEV_PRESENT=1, DEV_UNKNOWN=2};
 typedef enum {SENSOR_CLEAR, SENSOR_TRIPPED};
 typedef enum {SENSE_NORMAL_CLOSED=0, SENSE_NORMAL_OPEN=1};
 
-//SYSTEM_MODE(SEMI_AUTOMATIC);
 struct state_t
 {
   uint8_t magic;
   uint8_t current_state;
-  uint8_t armed;
+  uint8_t armed;    // ?? remove ??
   uint8_t tripped;
 }
-alarm_state;
+alarm_saved_state;
 #define ALARM_STATE_ADDRESS 0
 #define CONFIGURATION_ADDRESS sizeof(state_t)
+
 //device config data in eeprom array (Saved)
 struct config_t
 {
   uint8_t magic;
   uint8_t dev_addr[MAXDEVICE][8];
+  uint8_t port[MAXDEVICE];
   uint8_t use[MAXDEVICE];
   uint8_t sense[MAXDEVICE];
   char short_name[MAXDEVICE][SHORT_NAME_SIZE+2];
@@ -53,6 +56,7 @@ typedef struct device_t
 {
     uint8_t status;
 		uint8_t dev_rom[8];
+    uint8_t port;         //PIO-A==0, PIO-B==1
     uint8_t dev_use;
     uint8_t sense;        //sensor NC or NO
     float dev_reading;    //last PIO, temp, etc.
@@ -60,6 +64,7 @@ typedef struct device_t
     String name;
 };
 
+//just use put(address, object)
 template <class T> int EEPROM_writeAnything(int ee, const T& value)
 {
   const byte* p = (const byte*)(const void*)&value;
@@ -69,6 +74,7 @@ template <class T> int EEPROM_writeAnything(int ee, const T& value)
   return i;
 }
 
+//just use EEPROM.get(addr, object)
 template <class T> int EEPROM_readAnything(int ee, T& value)
 {
   byte* p = (byte*)(void*)&value;

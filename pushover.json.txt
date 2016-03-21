@@ -1,0 +1,13 @@
+{
+  "eventName": "safe-motion",
+  "url": "https://api.pushover.net/1/messages.json",
+  "requestType": "POST",
+  "query":
+  {
+    "user": "YOUR_USER_KEY",
+    "token": "YOUR_API_TOKEN_KEY",
+    "title": "MOTION",
+    "message": "{{SPARK_EVENT_VALUE}}"
+  },
+  "mydevices": true
+}

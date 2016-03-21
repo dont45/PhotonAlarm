@@ -107,9 +107,9 @@ uint8_t OW::readChannel(uint8_t *ROM, uint8_t *buf)
     uint8_t channel_control = 0x48;	// 0 1 0 0 1 0 0 0
     int i;
     wireReset();
-  #ifdef SERIAL_DEBUGXX
-    Serial.print("readChannel: ROM:");
-    for(int k=0;k<7;k++) {
+  #ifdef SERIAL_DEBUG_OW
+    Serial.print("OW::readChannel: ");
+    for(int k=0;k<8;k++) {
       Serial.print(ROM[k],HEX);
       Serial.print(":");
     }
@@ -118,14 +118,14 @@ uint8_t OW::readChannel(uint8_t *ROM, uint8_t *buf)
     busyWait(true);
     wireWriteByte(0xF5);
     wireWriteByte(channel_control);
-  #ifdef SERIAL_DEBUGXX
-    Serial.print("  channel_control: ");
+  #ifdef SERIAL_DEBUG_OW
+    Serial.print(" ch_control:");
     Serial.print(channel_control, BIN);
   #endif
     wireWriteByte(0xFF);
     *buf = wireReadByte();
-  #ifdef SERIAL_DEBUGXX
-    Serial.print("    ChannelInfo: ");
+  #ifdef SERIAL_DEBUG_OW
+    Serial.print(" ch_info:");
     Serial.println(*buf, BIN);
   #endif
     return *buf;
@@ -138,7 +138,7 @@ bool OW::readThermometer(uint8_t *ROM, double *rTempF) {
   uint8_t data[12];
   int raw;
   double temp;
-  #ifdef SERIAL_DEBUGXX
+  #ifdef SERIAL_DEBUG_THERM
   Serial.print("readThermometer-ROM:");
   Serial.println(ROM[1], HEX);
   #endif
@@ -155,7 +155,7 @@ bool OW::readThermometer(uint8_t *ROM, double *rTempF) {
   if(present) {
     wireSelect(ROM);
     wireWriteByte(0xbe);   //read scratchpad
-    #ifdef SERIAL_DEBUGXX
+    #ifdef SERIAL_DEBUG_THERM
     Serial.print("Scratchpad: ");
     for(int i=0; i<9; i++) {
       data[i] = wireReadByte();
@@ -165,13 +165,13 @@ bool OW::readThermometer(uint8_t *ROM, double *rTempF) {
     Serial.println();
     #endif
     if(DS2482::crc8(data,8) != data[8]) {
-      #ifdef SERIAL_DEBUG
+      #ifdef SERIAL_DEBUG_THERM
       Serial.println("CRC is not valid");
       #endif
       return FALSE;
     }
     raw = (data[1]<<8)+data[0];   //put two bytes of temp into raw
-    #ifdef SERIAL_DEBUGXX
+    #ifdef SERIAL_DEBUG_THERM
     Serial.println("convert tempC=");
     Serial.println(raw);
     #endif
@@ -182,10 +182,93 @@ bool OW::readThermometer(uint8_t *ROM, double *rTempF) {
   return FALSE;
 }
 
+//test explicit 8 bit write
+//wireWriteByte OK
+/*
+void OW::write8bits(uint8_t val) {
+    Serial.print("bits:");
+    uint8_t i, temp;
+    for (i=0; i<8; i++)			// writes byte, one bit at a time
+    {
+        temp = val >> i;		// shifts val right 'i' spaces
+        temp &= 0x01;			  // copy that bit to temp
+        Serial.print(temp);
+        wireWriteBit(temp);	    // write bit ont one-wire bus
+    }
+    Serial.print(" ");
+}
+*/
+// write PIO and/or PIO-B to ds2406 class device
+uint8_t OW::writePIOtest(uint8_t *ROM, uint8_t port, uint8_t val)
+{
+/*ds2414
+port = 0 ==> PIO-A, port = 1 ==> PIO-B
+PIO Output Data Byte
+bit assignment
+|  b7   |  b6   |  b5   |  b4   |  b3   |  b2   |  b1   |  b0   |
+|   X   |   X   |   X   |   X   |   X   |   X   |  PIOB |  PIOA |
+  X == 1, PIO val == 0 ==> transistor switched on
+  val = A ==1 (0b000001), B == 2 (0b00000010)
+  inverted = (-b11111110),or (0x11111101)
+  SIMPLE:
+  1) write ~port (11111110)
+  2) write port (inverted)
+*/
+    uint8_t port_data;
+    uint8_t conf_data;
+#ifdef SERIAL_DEBUG_OW
+    Serial.print("writePIOtest: port=");
+    Serial.print(port, BIN);
+    Serial.print(" val=");
+    Serial.println(val, BIN);
+#endif
+    switch(ROM[0]) {
+      case FMLY_2413:
+      port_data =  0xff & (~(val << port));
+#ifdef SERIAL_DEBUG_OW
+      Serial.print("Output Data: ");
+      Serial.print(port_data, HEX);
+#endif
+      // write this to wire
+      // and then write the complement
+      break;
+      default:
+#ifdef SERIAL_DEBUG_OW
+        Serial.println("FMLY not supported");
+#endif
+        return 0;
+    }
+    wireReset();
+    wireSelect(ROM);
+    busyWait(true);
+    wireWriteByte(0x5a);
+    wireWriteByte(port_data);
+    wireWriteByte(~port_data);
+    conf_data=wireReadByte(); //confirmation byte should read 0xAA
+#ifdef SERIAL_DEBUG_OW
+    Serial.print(" conf byte=");
+    Serial.print(conf_data, HEX);
+#endif
+    if(conf_data != 0xAA) {
+#ifdef SERIAL_DEBUG_OW
+      Serial.print("DS2413 write not confirmed:");
+      Serial.println(conf_data, HEX);
+#endif
+      return 0;
+    }
+    conf_data=wireReadByte(); //confirmation port data
+#ifdef SERIAL_DEBUG_OW
+    Serial.print(" port=");
+    Serial.println(conf_data, HEX);
+#endif
+    wireReset();
+    return conf_data;
+}
 // write PIO-A and/or PIO-B to ds2406 class device
 uint8_t OW::writePIO(uint8_t *ROM, uint8_t port, uint8_t val)
 {
 //  using write to status memory
+//   ??? THIS NEEDS FMLY WORK ???  ??port use ???
     status_memory_7 = 0x1f;		// shut off bits 5 & 6   (0001 1111)
     status_memory_7 |= val << 5;	// set bits 5 & 6        (0xx0 0000)
     wireReset();
@@ -196,44 +279,98 @@ uint8_t OW::writePIO(uint8_t *ROM, uint8_t port, uint8_t val)
     wireWriteByte(0x00);
     wireWriteByte(status_memory_7);
     wireReadByte();
-
     return 1;
 }
+
+;;// read PIO port=d.port state by family
+uint8_t OW::readPIOX(uint8_t *ROM, uint8_t port) {
+  uint8_t pio;
+  uint8_t sense_bit;
+  pio = readPIO(ROM);
+  #ifdef SERIAL_DEBUGXX
+    Serial.print("readPICX dev=");
+    Serial.print(ROM[0],HEX);
+    Serial.print(" port=");
+    Serial.print(port);
+  #endif
+  switch(ROM[0])
+  {
+    case FMLY_2406:
+        sense_bit = 1 << sense_port_shift[0][port];
+        #ifdef SERIAL_DEBUGXX
+          Serial.print(" sense_bit=");
+          Serial.println(sense_bit,BIN);
+        #endif
+        return (pio & sense_bit) ? 1 : 0;
+    break;
+    case FMLY_2413:
+        sense_bit = 1 << sense_port_shift[1][port];
+        #ifdef SERIAL_DEBUGXX
+          Serial.print(" sense_bit=");
+          Serial.println(sense_bit,BIN);
+        #endif
+        return (pio & sense_bit) ? 1 : 0;
+    break;
+    default:
+        return 0;
+  }
+}
+
+// read PIOA state by family
+uint8_t OW::readPIOA(uint8_t *ROM) {
+  uint8_t pio;
+  pio = readPIO(ROM);
+  switch(ROM[0])
+  {
+    case FMLY_2406:
+          return (pio & DS2406_PIOA_SENSE) ? 1 : 0;
+    break;
+    case FMLY_2413:
+          return (pio & DS2413_PIOA_SENSE) ? 1 : 0;
+    break;
+    default:
+          return 0;
+  }
+}
+// read PIOB state by family
+uint8_t OW::readPIOB(uint8_t *ROM) {
+  uint8_t pio;
+  pio = readPIO(ROM);
+  switch(ROM[0])
+  {
+    case FMLY_2406:
+          return (pio & DS2406_PIOB_SENSE) ? 1 : 0;
+    break;
+    case FMLY_2413:
+          return (pio & DS2413_PIOB_SENSE) ? 1 : 0;
+    break;
+    default:
+          return 0;
+  }
+};
 
 // read PIO state (switch family)
 uint8_t OW::readPIO(uint8_t *ROM)
 {
     uint8_t pio;
-    // for now, read only ds2405
     switch(ROM[0])
     {
-#ifdef INCL_FMLY_2405
-  	case FMLY_2405:
-#ifdef OLD-WAY
-    		uint8_t r1, r2;	// first and second read
-    		uint8_t sbuf1[2];
-    		uint8_t sbuf2[2];
-    		readChannel(ROM, sbuf1);
-    		readChannel(ROM, sbuf2);
-    		pio = sbuf2[0] == sbuf1[0];
-#endif
-		uint8_t r1, r2;
-		readChannel(ROM, &r1);
-		readChannel(ROM, &r2);
-		return r1 == r2;
-		break;
-#endif
-#ifdef INCL_FMLY_2406
+  	   case FMLY_2405:
+		      uint8_t r1, r2;
+		      readChannel(ROM, &r1);
+		      readChannel(ROM, &r2);
+		      return r1 == r2;
+		      break;
+    case FMLY_2413:
   	case FMLY_2406:
-		readChannel(ROM, &pio);
-		return pio;
-#endif
+		      readChannel(ROM, &pio);
+		      return pio;
 	default:
-#ifdef SERIAL_DEBUG
-		Serial->println("UNSUPPORTED");
+#ifdef SERIAL_DEBUG_OW
+		      Serial.println("readPIO FMLY UNSUPPORTED");
 #endif
-		return 0xFF;
-     }
+		      return 0xFF;
+    }
 }
 
 uint8_t OW::condSearch(uint8_t *newAddr)
