@@ -21,6 +21,9 @@
 
 #ifndef __STATE_H__
 #define __STATE_H__
+#define SECS_IN_DAY 86400
+#define SECS_IN_HOUR 3600
+#define SECS_IN_MINUTE 60
 
 #include "application.h"
 #include "parms.h"
@@ -30,8 +33,11 @@ class State {
 public:
   State();
   void sysState(uint8_t);
+  char* upTime(char *);
+  int upTime();
 private:
   int ledNoticeState = 0;
   uint8_t curState;
+  int startTime;
 };
 #endif

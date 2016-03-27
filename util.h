@@ -62,6 +62,8 @@ typedef struct device_t
     float dev_reading;    //last PIO, temp, etc.
     String short_name;
     String name;
+    uint8_t tripped;      //checkSensor says tripped
+    uint8_t reported;     //reported by alert
 };
 
 //just use put(address, object)

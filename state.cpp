@@ -28,6 +28,7 @@ void State::sysState(uint8_t current) {
   curState = current;
   switch(current) {
     case sys_starting:
+        startTime = Time.now();
     #ifdef SERIAL_DEBUG
         Serial.print("sys_starting ");
         Serial.println("SYSTEM_VERSION");
@@ -69,4 +70,25 @@ void State::sysState(uint8_t current) {
         Serial.println(curState);
     #endif
   }
+}
+
+int State::upTime() {
+  return Time.now() - startTime;
+}
+//calculate and format system up-time as dd hh:mm
+char* State::upTime(char* upTimeStr) {
+  int now,uptime,uptimeH,uptimeM;
+  int updays,uphours,upminutes,upseconds;
+
+  //now = Time.now();
+  //uptime = now-startTime;
+  uptime = upTime();
+  updays = uptime / SECS_IN_DAY;    //days
+  uptimeH = uptime % SECS_IN_DAY;  //uptime hours (minus days)u
+  uphours = uptimeH / SECS_IN_HOUR; //hours
+  uptimeM = uptimeH % SECS_IN_HOUR;
+  upminutes = uptimeM / SECS_IN_MINUTE;         //minutes
+  upseconds = uptimeM % SECS_IN_MINUTE;
+  sprintf(upTimeStr,"%2d %02d:%02d:%02d",updays,uphours,upminutes,upseconds);
+  return upTimeStr;
 }

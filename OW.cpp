@@ -282,7 +282,7 @@ uint8_t OW::writePIO(uint8_t *ROM, uint8_t port, uint8_t val)
     return 1;
 }
 
-;;// read PIO port=d.port state by family
+// read PIO port=d.port state by family
 uint8_t OW::readPIOX(uint8_t *ROM, uint8_t port) {
   uint8_t pio;
   uint8_t sense_bit;
@@ -296,24 +296,23 @@ uint8_t OW::readPIOX(uint8_t *ROM, uint8_t port) {
   switch(ROM[0])
   {
     case FMLY_2406:
-        sense_bit = 1 << sense_port_shift[0][port];
+          sense_bit = 1 << sense_port_shift[0][port];
         #ifdef SERIAL_DEBUGXX
           Serial.print(" sense_bit=");
           Serial.println(sense_bit,BIN);
         #endif
-        return (pio & sense_bit) ? 1 : 0;
-    break;
+          break;
     case FMLY_2413:
-        sense_bit = 1 << sense_port_shift[1][port];
+          sense_bit = 1 << sense_port_shift[1][port];
         #ifdef SERIAL_DEBUGXX
           Serial.print(" sense_bit=");
           Serial.println(sense_bit,BIN);
         #endif
-        return (pio & sense_bit) ? 1 : 0;
-    break;
+          break;
     default:
-        return 0;
+          return 0;
   }
+  return (pio & sense_bit) ? 1 : 0;
 }
 
 // read PIOA state by family

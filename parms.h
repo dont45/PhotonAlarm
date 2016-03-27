@@ -10,7 +10,7 @@
 
 #define SENSOR_LIST_SCAN
 #define ALERT_HOURS 3
-#define LOOP_DELAY_TIME 2000         //Delay ms between loop passes
+#define LOOP_DELAY_TIME 1000        //Delay ms between loop passes
 #define MAX_ALARM_NOTIFIED 3
 #define SYSTEM_STATUS_PIN D2        //RED if Armed, Blinking if any tripped
 #define SYSTEM_NOTIFICATION_PIN D3  //GREEN blinks at each loop ??
@@ -22,7 +22,7 @@
 #define RANDOM_MAX 9999
 #define PUSHOVER_SEND_MESSAGES      //actually send Pushover Messages
 #define WORRY_MINUTES 5             //time between follow-up notifications
-#define MESSAGE_LOOP_DELAY 10       //number of loop passes btw notifications = 5secU
+#define MESSAGE_LOOP_DELAY 1        //number of loop passes btw notifications = 5secU
 #define MAX_MESSAGE_PER_HOUR 20     //absolute maximum of pushover messages per hour
 #define MAXDEVICE 3                 //simple testing
 #define MAX_ALLOW_OWDEV  10         //absolute maximum of ow devices

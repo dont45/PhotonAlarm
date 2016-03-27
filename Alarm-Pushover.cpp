@@ -3,8 +3,9 @@
   @file     Alarm-Pushover.cpp
   @author   D. Thompson
   @license  GNU General Public License (see license.txt)
-  @version  0.1.4
+  @version  0.1.5
 
+check code arount \\n q
   This program is free software: you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
   the Free Software Foundation, either version 3 of the License, or
@@ -29,7 +30,7 @@
 //    or can we skip-rom to just read class 01 == i-button ??
 // g) add ds thermometer support
 
-#define SYSTEM_VERSION "0.1.4"
+#define SYSTEM_VERSION 0.1.5
 #define SERIAL_DEBUG
 //#define SERIAL_WAIT
 #include "application.h"
@@ -39,6 +40,7 @@
 #include "OW.h"
 #include "parms.h"
 #include "util.h"
+#include "math.h"
 
 //STARTUP(System.enableFeature(FEATURE_RETAINED_MEMORY));
 //retained uint8_t testcurState;
@@ -192,6 +194,7 @@ float Sensor::readTemperature() {
 float Sensor::getLastTemperature() {
   return last_temp;
 }
+
 char* Sensor::romFormat(char *buf, uint8_t rom[]) {
   char *bp = buf;
   int n = 0;
@@ -209,7 +212,9 @@ char* Sensor::romFormat(char *buf, uint8_t rom[]) {
 
 Sensor sensor;
 
-// Alarm states xxx
+// Alarm states xxx  FIX:???
+// need two states: alarm_state; DISARMED, armed
+// and sensor_state: clear, tripped, notified
 typedef enum {alarm_disarmed=0,alarm_armed=1,alarm_tripped=2,alarm_notifying=3,alarm_clearing=4};
 const char* alarm_state_name_def[5] = {"disarmed", "armed", "tripped", "notify", "clear"};
 
@@ -228,11 +233,13 @@ public:
   uint8_t buildDeviceList();
   void dump_device_list();
   bool validate_device_list();
+  char* deviceListing(char *buf);
   uint8_t wiredeviceAquire();
   bool wiredeviceValidate(uint8_t *ROM);
   bool isTripped();
   bool prevTripped();
   device_t *firstTripped();
+  void tripListString();
   bool isArmed();
   void doStatusBlink();
   void clearing_countup();
@@ -240,6 +247,7 @@ public:
   String getPendingMessage();
   bool checkSensors(void);
   String getLastTemperature();  //testing
+  bool clearSensorReported();
 private:
   uint8_t curState;
   device_t device;
@@ -249,7 +257,28 @@ private:
   uint8_t firstTrippedSensor;
   int clearing_cnt;
   String message;  //??name
+  String trippedString;
 };
+
+//return FALSE if some sensor still tripped
+//return TRUE if all now clear
+bool Alarm::clearSensorReported() {
+  // run thru sensor list and clear reporting if not tripped
+  // send error message if still tripped and leave reported
+  std::list<device_t>::iterator k;
+  bool all_clear = TRUE;
+  for(k=D.begin(); k != D.end(); ++k) {
+     //device_t sp = *k;
+     if(k->reported) {
+       if (k->tripped) {
+         all_clear = FALSE;
+       }
+       else
+         k->reported = FALSE;
+     }
+   }
+   return all_clear;
+}
 
 String Alarm::getLastTemperature() {
   //String t = String("100.00");  //will get from sensor.....???
@@ -310,10 +339,12 @@ bool Alarm::setState(uint8_t new_state) {
     #endif
         ledStatusBlink = 1;
         prevTripState = TRUE;
-        message = "ALARM";
+        tripListString();
+        message = trippedString; //??FIX
         break;
     case alarm_notifying:
         curState = new_state;
+        prevTripState = FALSE;
     #ifdef SERIAL_DEBUG
         Serial.print("alarm notifying:");
         Serial.println(clearing_cnt);
@@ -324,8 +355,8 @@ bool Alarm::setState(uint8_t new_state) {
         ledStatusState = 1;
         ledStatusBlink = 2;
         if(prevTripped()) {
-          if(clearing_cnt > 50) { //?? count
-            Serial.println("clearing_cnt > 50, clearing...");
+          if(clearing_cnt > 5) { //?? count
+            Serial.println("clearing_cnt > 5, clearing...");
             prevTripState = FALSE;
             clearing_cnt = 0;
             setState(alarm_clearing);
@@ -372,14 +403,9 @@ uint8_t Alarm::buildDeviceList() {
     device.sense = configuration.sense[j];
     //write non-terminaed string copy to String routine??
     strncpy(nbuf,configuration.short_name[j],SHORT_NAME_SIZE);
-    //nbuf[0]=configuration.short_name[j][0];
-    //nbuf[1]=configuration.short_name[j][1];
     nbuf[SHORT_NAME_SIZE]=0;
     device.short_name = String(nbuf);
-    //Just use strncpy ???
     strncpy(nbuf,configuration.name[j],SENSOR_NAME_SIZE);
-    //for(int k=0;k<SENSOR_NAME_SIZE;k++)
-    //  nbuf[k]=configuration.name[j][k];
     nbuf[SENSOR_NAME_SIZE]=0;
     device.name = String(nbuf);
 #ifdef SERIAL_DEBUGXX
@@ -387,6 +413,8 @@ uint8_t Alarm::buildDeviceList() {
     Serial.println(device.name);
 #endif
     device.dev_reading = 0.0;
+    device.tripped = 0;
+    device.reported = 0;
     D.push_back(device);
     dev_cnt++;
   }
@@ -397,6 +425,57 @@ uint8_t Alarm::buildDeviceList() {
   return dev_cnt;
 }
 
+char* Alarm::deviceListing(char *buf) {
+  std::list<device_t>::iterator k;
+  char romhex[30];
+  buf[0]=0;
+  strcat(buf,"\\n"); //json escape line feed
+  for(k=D.begin(); k != D.end(); ++k) {
+     device_t sp = *k;
+     sensor.romFormat(romhex, sp.dev_rom);
+     strncat(buf,sp.short_name,SHORT_NAME_SIZE);
+     strcat(buf," ");
+     //Serial.print("  Status:");
+     //Serial.print(sp.status);
+     //Serial.print(" Use:");
+     //Serial.print(sp.dev_use);
+     strncat(buf,sp.name,SENSOR_NAME_SIZE);
+     strcat(buf," state:");
+     if(k->status==0) strcat(buf,"M");      //missing
+     else if(k->status==1) strcat(buf,"P"); //present
+     else strcat(buf,"U");                  //unknown
+     if(k->tripped) strcat(buf,"T");        //tripped
+     else strcat(buf,"C");                  //clear
+     if(k->reported) strcat(buf,"R");       //reported
+     strcat(buf,"\\n");
+   }
+   Serial.println("deviceListing");
+   Serial.println(buf);
+   return buf;
+}
+
+// trippedList to String
+void Alarm::tripListString() {
+  std::list<device_t>::iterator k;
+  int i = 0;
+  bool has_tripped = FALSE;
+  char trippedbuf[60];
+  trippedbuf[0]=0;
+  strcpy(trippedbuf,"TRIPPED SENSORS:\\n");
+  for(k=trippedList.begin(); k != trippedList.end(); ++k) {
+     device_t sp = *k;
+     strncat(trippedbuf,sp.short_name,SHORT_NAME_SIZE);
+     strcat(trippedbuf,"\\n");
+     i++;
+     has_tripped=TRUE;
+   }
+   if(!has_tripped) strcat(trippedbuf,"none");
+   Serial.print("trippedListString: no=");
+   Serial.print(i);
+   Serial.print(" List=");
+   Serial.print(trippedbuf);
+   trippedString = String(trippedbuf);
+}
 //debug dump of sensor list
 void Alarm::dump_device_list() {
   std::list<device_t>::iterator k;
@@ -443,7 +522,7 @@ bool Alarm::validate_device_list() {
 }
 
 bool Alarm::isTripped() {
-  return curState==alarm_tripped || curState==alarm_notifying;
+  return curState==alarm_tripped;  // || curState==alarm_notifying;
 }
 
 bool Alarm::prevTripped() {
@@ -721,9 +800,10 @@ bool Alarm::writeSavedState() {
   return TRUE;
 }
 
-// returns TRUE if any sensor tripped
+// returns TRUE if any sensor unreported tripped
 bool Alarm::checkSensors(void) {
-  bool temptrip = FALSE;
+  //bool temptrip = FALSE;
+  bool reporting = FALSE;
   //?? Must check all sensors here for alarm condition and notify
   // if not already notified and handle countdown to too many notifications
   // and reset conditions once alarm condition is cleared
@@ -744,7 +824,9 @@ bool Alarm::checkSensors(void) {
   #endif
     //if(sp.status == DEV_PRESENT) {  <=== add this ???
     if(sensor.readSensor(sp)) {
-      temptrip = TRUE;
+      k->tripped = TRUE;
+      if(!k->reported) reporting = TRUE;
+      //temptrip = TRUE;
       trippedList.push_back(sp);
       #ifdef SERIAL_DEBUG
             Serial.println();
@@ -752,12 +834,20 @@ bool Alarm::checkSensors(void) {
             Serial.println(sp.name);
       #endif
     }
+    else { // ??????
+      k->tripped = FALSE;
+    }
   }
-  if(curState == alarm_notifying) {
+/*
+  if(curState == alarm_armed) {
+    if(reporting)
+  }
+  else if(curState == alarm_notifying) {
      Serial.print("curState=alarm_notifying: clearning_cnt=");
      Serial.println(clearing_cnt);
   }
-  return temptrip;
+*/
+  return reporting;
 }
 void Alarm::clearing_countup() {
   clearing_cnt++;
@@ -767,9 +857,9 @@ Alarm alarm1;
 //timer use CAUSES build to FAIL ???
 //Timer blinkTimer(1000, &Alarm::blinkTimeout, alarm1, TRUE);
 //Since timer in class does not build
-void clear_blinking() {
-  alarm1.blinkTimeout();
-}
+//void clear_blinking() {
+//  alarm1.blinkTimeout();
+//}
 
 //Timer blink2Timer(5000, clear_blinking);
 
@@ -785,9 +875,11 @@ public:
     secret_timeout = 0;   //loop passes to timeout secret
     alarm_notify_cnt = 0;
     alarm_times_notified = 0;
+    hours_between_alert = ALERT_HOURS;
   }
   int upd(String command);
   int set(String);
+  String updData();
   void sendMessage(char* msg);  //send message to pushover
   void sendMessage(String);
   void queueMessage(String);    //add message to queue
@@ -797,6 +889,7 @@ public:
   void pushAlarm(char* msg);
   void secret_countdown();
   void setStartTime();
+  void setAlertHours(int h);
   void checkTime();
 
 private:
@@ -814,11 +907,13 @@ private:
   int lasthour = 0;   //use -1 to skip startup
   int lastminute = 0;
   int elapsedminutes = 0;
+  int hours_between_alert;
   Sensor *sensor;
 };
 
 // set time at initialization
 void Notifier::setStartTime() {
+  hours_between_alert = ALERT_HOURS;
   hour=Time.hour();
   lasthour = hour - (hour % ALERT_HOURS);
   if(lasthour <0) lasthour += 24;
@@ -832,8 +927,9 @@ void Notifier::setStartTime() {
 }
 
 void Notifier::checkTime() {
+  String worry_message;
   int tempHour = hour;
-
+  int min_hours_between;
   hour=Time.hour();
   minute=Time.minute();
 
@@ -844,13 +940,18 @@ void Notifier::checkTime() {
   if(elapsedminutes >= WORRY_MINUTES) {
     elapsedminutes = minute;
   }
+  min_hours_between = max(1,hours_between_alert);
   tempHour = hour;
   if(tempHour < lasthour) tempHour += 24;
-  //ALERT_HOURS = 4  {4,8,12}
+  //if hours_between_alert = 4  {4,8,12}
   //FIRST TIME EARLY: LAST_HOUR 3
-  if(tempHour - lasthour >= ALERT_HOURS) { //NEEDS TO BE ON BOUNDARY
+  //if hours_between_alert is zero, don't alert but do log temp hourly
+  if(tempHour - lasthour >= min_hours_between) { //NEEDS TO BE ON BOUNDARY
     if(lasthour!=-1){
-      queueMessage(" ");
+      if(hours_between_alert != 0) {
+         worry_message = updData();
+         queueMessage(worry_message);
+      }
       char tempF[10];
       sprintf(tempF,"%4.1fF",sensor->readTemperature());
       Particle.publish("temperature2", tempF);
@@ -867,28 +968,93 @@ void Notifier::checkTime() {
 
 // push status message on demand
 int Notifier::upd(String command) {
-  queueMessage(" ");
-  return 1;
+  String msg;
+  msg = updData();  //nameing ??
+  queueMessage(msg);
+}
+// format common update message
+String Notifier::updData() {
+  device_t* ts;
+  char uptime[40];
+  char buf[40];
+  //make this a method in Notifier
+  //to share with worry
+  sys.upTime(uptime);
+  String msg = String("\\nsys up time: ");
+  msg.concat(uptime);
+  msg.concat("\\nver 0.1.5");
+  sprintf(buf,"\\nworry %d hours",hours_between_alert);
+  msg.concat(buf);
+  ts = alarm1.firstTripped();
+  if(ts != NULL) {
+    //SHOULD do all tripped, not just first
+    sprintf(buf,"\\ntripped sensors:\\n");
+    strcat(buf,ts->name);
+  } else
+    sprintf(buf,"\\nall sensor clear");
+  msg.concat(buf);
+  return msg;
 }
 
 // set alarm state remotely
-int Notifier::set(String command) {
-  int i;
-// use my old command-line parser here ???
-  switch(toupper(command.charAt(0))) {
-    case 'R' : // REQUEST Random Secret
-        //command = 'REQUEST'
+int Notifier::set(String cmd_line) {
+  int cidx;
+  int p1,p2;
+  int i,h,n;
+  char msg[20];
+  char args[20];
+  char args2[10];
+  char device_list[100];
+  String delim = String(".");
+  String commands = String("RAN.SET.DIS.ACK.HOU.LIS.");
+  //                        0   1   2   3   4   5
+  sscanf (cmd_line,"%s %s %s",msg,args,args2);
+  Serial.printf("set: cmd=%s args=%s args2=%s\n",msg,args,args2);
+  String parsed_cmd = String(msg);
+  parsed_cmd.toUpperCase();
+  parsed_cmd = parsed_cmd.substring(0,3);
+  parsed_cmd.concat(delim);
+  Serial.print("parsed cmd:");
+  Serial.println(parsed_cmd);
+  cidx=commands.indexOf(parsed_cmd);
+  if(cidx==-1) {
+    queueMessage("INVALID COMMAND");
+    return 0;
+  }
+  else cidx /=4;
+  // now parse args ...
+  //kludge: if contains ' '
+  p1 = 0;
+  String arg_list = String(args);
+  String arg_list2 = String(args2);
+  Serial.print("args:");
+  Serial.println(args);
+  p1 = arg_list.toInt();
+  n = arg_list.indexOf(' ');
+  Serial.print("index of blank:");
+  Serial.println(n);
+  p2 = arg_list2.toInt();
+  Serial.print("p1=");
+  Serial.print(p1);
+  Serial.print(" p2=");
+  Serial.println(p2);
+
+  Serial.printf("cmd index=%d\n",cidx);
+  Serial.printf("secret=%d\n",p1);
+  Serial.printf("arg=%d\n",p2);
+  //now we can switch i 1..6!!!
+  switch(cidx) {
+    case 0 : // RANDOM Secret
         secret = random(RANDOM_MIN,RANDOM_MAX); //small range for DEBUG
         secret_timeout = 120; // one minutes @ 500ms loops
-        char msg[20];
         sprintf(msg, " Secret %d", secret);
         queueMessage(msg);
         break;
-    case 'S' : // SET Alarm if Secret matches
+    case 1 : // SET Alarm if Secret matches
         //command = 'SET <secret>'
         if(!secret) return 0;
-        sscanf (command,"%3s %d",msg,&i);
-        if(i == secret) {
+        //sscanf (cmd_line,"%3s %d",msg,&i);
+        if(p1 == secret) {
           secret = 0;
           // enable alarm here!!
           // set unless tripped
@@ -903,11 +1069,11 @@ int Notifier::set(String command) {
           queueMessage(" INVALID REQUEST");
         return 1;
         break;
-    case 'D' : // Disarm Alarm if Secret matches
+    case 2 : // Disarm Alarm if Secret matches
         if(!secret) return 0;
         //command = 'DISARM <secret>'
-        sscanf (command,"%3s %d",msg,&i);
-        if(i == secret) {
+        //sscanf (cmd_line,"%3s %d",msg,&i);
+        if(p1 == secret) {
           secret = 0;
           // DISABLE alarm here!!
           alarm1.setState(alarm_disarmed);
@@ -917,20 +1083,60 @@ int Notifier::set(String command) {
           queueMessage(" INVALID SECRET");
         return 1;
         break;
-    case 'A' : // Acknowledge tripped Alarm
+    case 3 : // Acknowledge tripped Alarm
         if(!secret) {
           queueMessage("SECRED TIMED OUT");
           return 0;
         }
-        sscanf (command,"%s %d",msg,&i);
-        if(i == secret) {
+        //sscanf (cmd_line,"%s %d",msg,&i);
+        if(p1 == secret) {
           secret = 0;
           // clear blink state
           alarm1.setState(alarm_armed);
-          queueMessage("ALARM ACKNOWLEDGED");
+          if(alarm1.clearSensorReported())
+            queueMessage("ALARM ACKNOWLEDGED");
+          else
+            queueMessage("SENSOR STILL TRIPPED");
           queueMessage(alarm1.getPendingMessage());
         } else
           queueMessage("INVALID SECRET");
+          return 1;
+          break;
+    case 4 : // SET alert Hours if Secret matches
+          //command = 'HOUR <hours> <secret>'
+          if(!secret) return 0;
+          //sscanf (cmd_line,"%s %d %d",msg,&i, &h);
+          if(p1 == secret) {
+              secret = 0;
+              // set hours_between_alert if valid
+              if(p2 >= 0 and p2 <= 12) {
+                setAlertHours(p2);
+                if(p2)
+                  sprintf(msg, "HOURS BTW WORRY SET TO %d", p2);
+                else
+                  sprintf(msg, "WORRY ALERTS DISABLED");
+                queueMessage(msg);
+                #ifdef SERIAL_DEBUG
+                  Serial.print('seting hours_between_alert');
+                  #endif
+              } else
+                queueMessage("INVALID ALERT HOURS");
+                //queueMessage(alarm1.getPendingMessage());
+            } else
+              queueMessage("INVALID REQUEST");
+          return 1;
+          break;
+      case 5 : // List all Devices
+          //command = 'LIST <secret>'
+          if(!secret) return 0;
+          //sscanf (cmd_line,"%s %d",msg,&i);
+          if(p1 == secret) {
+              secret = 0;
+              // LIST ALL Sensor Devices
+              alarm1.deviceListing(device_list);
+              queueMessage(device_list);
+          } else
+              queueMessage("INVALID REQUEST");
           return 1;
           break;
     default:   // Error
@@ -944,6 +1150,11 @@ int Notifier::set(String command) {
 void Notifier::secret_countdown() {
   if(!secret_timeout--) secret = 0;
 }
+void Notifier::setAlertHours(int hours) {
+  lasthour = Time.hour() - 1;
+  if(lasthour < 0) lasthour = 23;
+  hours_between_alert = hours;
+}
 bool Notifier::msgqueueEmpty() {
     return msg_queue.empty();
 }
@@ -955,31 +1166,32 @@ void Notifier::hourlyReset() {
 }
 void Notifier::dequeMessage() {
   String next_message;
-  Serial.println("dequeMessage");
   if(!msg_queue.empty()){
     next_message = msg_queue.front();
     //don't flood messages, but if they are not sent\
     //here we need to try again when hour changes...
     //just call dequeMessage..it checks if empty
-    Serial.print(" not empty");
+    //Serial.print(" not empty");
     if(msg_limit++ < MAX_MESSAGE_PER_HOUR) {
       msg_queue.pop();
-      Serial.print("msg_limit=");
-      Serial.print(msg_limit);
-      Serial.print(" sending...");
+      //Serial.print("msg_limit=");
+      //Serial.print(msg_limit);
+      //Serial.print(" sending...");
       sendMessage(next_message);
     }
   }
+#ifdef SERIAL_DEBUGXX
   else {
     Serial.print("queue empty!");
   }
   Serial.println(" ");
+#endif
 }
 
 void Notifier::sendMessage(String msg) {
-  char message[80];
-  strncpy(message, msg.c_str(), 80);
-  sendMessage(message);
+  char tmessage[80];
+  strncpy(tmessage, msg.c_str(), 80);
+  sendMessage(tmessage);
 }
 //change queueMessage to simply insert message into pending queue
 //add method to throttle calls to dequeMessage (x minutes between)
@@ -988,14 +1200,16 @@ void Notifier::sendMessage(String msg) {
 // send message to pushover
 void Notifier::sendMessage(char* msg) {
   Serial.print("sendMessage:");
-  String time = Time.format("%d/%m/%y %H:%M:%S");
-  sprintf(event_message,"%s %4.1f %s",time.c_str(),sensor->readTemperature(),
+  String time = Time.format("%m/%d/%y %H:%M:%S");
+  sprintf(event_message,"%s %4.1fF\\n%s",time.c_str(),
+      sensor->readTemperature(),
       alarm_state_name_def[alarm1.getState()]);
   strcat(event_message," ");
   if(alarm1.isTripped()) {
-    strcat(event_message," T*");
+    strcat(event_message," sensor tripped:\\n");
     device_t* ts;
     //NULL if trippedList empty
+    //iterate  thru trippedList xxxxyy
     ts = alarm1.firstTripped();
     if(ts != NULL) {
       strncat(event_message,ts->name,6);
@@ -1004,11 +1218,12 @@ void Notifier::sendMessage(char* msg) {
   }
   strcat(event_message, msg);
 #ifdef PUSHOVER_SEND_MESSAGES
-  Serial.print(" publish:");
-  Serial.println(event_message);
+  Serial.print(" publish ");
   Spark.publish(webhook_id, event_message, 60, PRIVATE);
-#else
-  Serial.print("MESSAGE:");
+//  Spark.publish(webhook_id, event_message, 60, PUBLIC);
+#endif
+#ifdef SERIAL_DEBUG
+  Serial.print("msg:");
   Serial.println(event_message);
 #endif
 }
@@ -1028,7 +1243,7 @@ void Notifier::pushAlarm(char* msg) {
     Spark.publish(webhook_id, event_message, 60, PRIVATE);
   }
 }
-Notifier notify("safe-motion", &sensor);
+Notifier notify("shed_alarm", &sensor);
 
 void reset_handler()
 {
@@ -1055,11 +1270,12 @@ void setup() {
   #endif
 #endif
     delay(1000);
-    String version = String(SYSTEM_VERSION);
+    String version = String("SYSTEM_VERSION");
     Serial.print("PhotoAlarm initializing...Version = ");
+    sys.sysState(sys_starting);
     Serial.println(version);
 //    digitalWrite(trigger3, HIGH); //DEBUG, trigger pin3 for logic 8 analyzer
-    Time.zone(EST_OFFSET);
+    Time.zone(EDT_OFFSET);
     uint8_t rv = mcp9808.begin(MCP9808_I2CADDR);  //bus master
     ow.reset();
     if(!alarm1.readSavedState()) {
@@ -1130,7 +1346,7 @@ void setup() {
     sys.sysState(sys_running);
     notify.queueMessage("SYSTEM RUNNING");
 
-    // set lasthour to  be on ALERT_HOURS multiple
+    // set lasthour to  be on 'hours_between_alert' multiple
     notify.setStartTime();
     sensor.readTemperature();
     Serial.println("running...");
@@ -1146,23 +1362,18 @@ void loop() {
     // MAKE this all a notify function
     if(alarm1.isArmed()) {
       if(alarm1.checkSensors()) {
-        // a sensor is tripped
+        // an unreported sensor is tripped
         // already know about this if alarm_tripped or alarm_notifying
         // else set state to alarm_tripped
         //typedef enum {alarm_disarmed=0,alarm_armed=1,alarm_tripped=2,alarm_notifying=3,alarm_clearing=4};
         //const char* alarm_state_name_def[5] = {"disarmed", "armed", "tripped", "notify", "clear"};
         if(!alarm1.isTripped()) {    //???? map the state moves out ??
+          notify.queueMessage("sensor tripped\\n");
           alarm1.setState(alarm_tripped);
-
-          if(!alarm1.prevTripped()) {//xxxxy
-            alarm1.setState(alarm_tripped);
-            notify.queueMessage(alarm1.getPendingMessage()); //SHY?? WHAT??
-            notify.queueMessage(alarm1.getPendingMessage()); //queue message twice
-          }
         }
       }
       else {
-        // all sensors are clear
+        // all sensors are clear OR reported
         if(alarm1.prevTripped()) {
           //goes back to armed state by ack message or timer timeout
           //or by loop countdown ???
