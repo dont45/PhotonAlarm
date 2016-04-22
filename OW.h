@@ -21,7 +21,7 @@
 
 #define SERIAL_DEBUG
 //#define SERIAL_DEBUG_OW
-//#define SERIAL_DEBUG_THERM
+#define SERIAL_DEBUG_THERM
 //#include <inttypes.h>
 #include "DS2482.h"
 // move these to an include ??
@@ -63,7 +63,7 @@ public:
     uint8_t writeStatus(uint8_t *ROM, uint8_t);
     uint8_t readChannel(uint8_t *ROM, uint8_t *);		// read status bytes of ds2406
     uint8_t channelAccess(uint8_t *ROM, uint8_t channel_control, uint8_t *buf);
-    bool readThermometer(uint8_t *ROM, double *rTempF);
+    bool readThermometer(uint8_t *ROM, double &rTempF);
     uint8_t readPIO(uint8_t *ROM);		// read PIO state (switch family) (readdevPort ???;;;;)
     uint8_t readPIOA(uint8_t *ROM);
     uint8_t readPIOB(uint8_t *ROM);

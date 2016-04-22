@@ -84,7 +84,7 @@ uint8_t DS2482::wireReadConfig()
 uint8_t DS2482::busyWait(bool bsetReadPtr)
 {
 	uint8_t status;
-	int loopCount = 1000;
+	int loopCount = 100;
 	while((status = wireReadStatus(bsetReadPtr)) & DS2482_STATUS_BUSY)
 	{
 		if (--loopCount <= 0)

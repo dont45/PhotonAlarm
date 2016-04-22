@@ -132,16 +132,32 @@ uint8_t OW::readChannel(uint8_t *ROM, uint8_t *buf)
 }
 
 //ds1820 class thermometer
-bool OW::readThermometer(uint8_t *ROM, double *rTempF) {
-  //COPY FROM MY BOOK..
+bool OW::readThermometer(uint8_t *ROM, double &rTempF) {
   uint8_t present = 0;
   uint8_t data[12];
+  uint8_t type_s;
   int raw;
-  double temp;
+  double celsius;
   #ifdef SERIAL_DEBUG_THERM
   Serial.print("readThermometer-ROM:");
   Serial.println(ROM[1], HEX);
   #endif
+  switch (ROM[0]) {
+    case 0x10:
+      //Serial.println("  Chip = DS18S20");  // or old DS1820
+      type_s = 1;
+      break;
+    case 0x28:
+      //Serial.println("  Chip = DS18B20");
+      type_s = 0;
+      break;
+    case 0x22:
+      //Serial.println("  Chip = DS1822");
+      type_s = 0;
+    default:
+      //Serial.println("Device is not a DS18x20 family device.");
+      return FALSE;
+  }
   wireReset();
   wireSelect(ROM);
   wireWriteByte(0x44);     //start conversion
@@ -170,34 +186,32 @@ bool OW::readThermometer(uint8_t *ROM, double *rTempF) {
       #endif
       return FALSE;
     }
-    raw = (data[1]<<8)+data[0];   //put two bytes of temp into raw
+    raw = (data[1]<<8) | data[0];   //put two bytes of temp into raw
+    if (type_s) {
+      raw = raw << 3; // 9 bit resolution default
+      if (data[7] == 0x10) {
+        // "count remain" gives full 12 bit resolution
+        raw = (raw & 0xFFF0) + 12 - data[6];
+      }
+    } else {
+      uint8_t cfg = (data[4] & 0x60);
+      // at lower res, the low bits are undefined, so let's zero them
+      if (cfg == 0x00) raw = raw & ~7;  // 9 bit resolution, 93.75 ms
+      else if (cfg == 0x20) raw = raw & ~3; // 10 bit res, 187.5 ms
+      else if (cfg == 0x40) raw = raw & ~1; // 11 bit res, 375 ms
+      //// default is 12 bit resolution, 750 ms conversion time
+    }
+    celsius = (double)raw / 16.0;
+    rTempF = celsius * 1.8 + 32;    //convert to Fahrenheit
     #ifdef SERIAL_DEBUG_THERM
     Serial.println("convert tempC=");
-    Serial.println(raw);
+    Serial.println(celsius);
     #endif
-    temp = (double)raw * 0.0625;  //convert to celcius
-    *rTempF = temp * 1.8 + 32;    //convert to Fahrenheit
     return TRUE;
   }
   return FALSE;
 }
 
-//test explicit 8 bit write
-//wireWriteByte OK
-/*
-void OW::write8bits(uint8_t val) {
-    Serial.print("bits:");
-    uint8_t i, temp;
-    for (i=0; i<8; i++)			// writes byte, one bit at a time
-    {
-        temp = val >> i;		// shifts val right 'i' spaces
-        temp &= 0x01;			  // copy that bit to temp
-        Serial.print(temp);
-        wireWriteBit(temp);	    // write bit ont one-wire bus
-    }
-    Serial.print(" ");
-}
-*/
 // write PIO and/or PIO-B to ds2406 class device
 uint8_t OW::writePIOtest(uint8_t *ROM, uint8_t port, uint8_t val)
 {

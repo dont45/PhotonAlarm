@@ -40,7 +40,7 @@
 #endif
 
 #define MCP9808_I2CADDR_DEFAULT        0x18
-#define MCP9808_I2CADDR                0x19   //A0 HIGH, A1,A2 LOW
+#define MCP9808_I2CADDR                0X19     //0x1A   //A1 HIGH, A0,A2 LOW
 #define MCP9808_REG_CONFIG             0x01
 
 #define MCP9808_REG_CONFIG_SHUTDOWN    0x0100

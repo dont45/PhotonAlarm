@@ -21,14 +21,16 @@
 #include "state.h"
 
 State::State(){
+    status = 0;
     ledNoticeState = 0;
+    startTime = Time.now();
 }
 
 void State::sysState(uint8_t current) {
+  int notificationLED;
   curState = current;
   switch(current) {
     case sys_starting:
-        startTime = Time.now();
     #ifdef SERIAL_DEBUG
         Serial.print("sys_starting ");
         Serial.println("SYSTEM_VERSION");
@@ -45,12 +47,17 @@ void State::sysState(uint8_t current) {
         digitalWrite(SYSTEM_STATUS_PIN, HIGH);
         break;
     case sys_fail:
-        //HANG with fast green blink
+        //HANG with fast red (hardware) or green (configuration) blink
         #ifdef SERIAL_DEBUG
-            Serial.println("sys_fail");
+            Serial.print("sys_fail:");
+            Serial.println(status,HEX);
         #endif
+        if((status & fail_hardware) || (status & fail_ds2482))
+          notificationLED = SYSTEM_STATUS_PIN;
+        else
+          notificationLED = SYSTEM_NOTIFICATION_PIN;
         while(1) {
-          digitalWrite(SYSTEM_NOTIFICATION_PIN, ledNoticeState);
+          digitalWrite(notificationLED, ledNoticeState);
           if(++ledNoticeState > 1) ledNoticeState = 0;
           delay(200);
         }
@@ -61,6 +68,7 @@ void State::sysState(uint8_t current) {
             Serial.print("sys_running");
             Serial.println(SYSTEM_VERSION);
         #endif
+        startTime = Time.now();  //?? in class initializer
         digitalWrite(SYSTEM_STATUS_PIN, LOW);
         digitalWrite(SYSTEM_NOTIFICATION_PIN, HIGH);
         break;
@@ -72,6 +80,12 @@ void State::sysState(uint8_t current) {
   }
 }
 
+void State::addStatus(uint8_t sbit) {
+  status |= sbit;
+}
+uint8_t State::sysStatus() {
+  return status;
+}
 int State::upTime() {
   return Time.now() - startTime;
 }

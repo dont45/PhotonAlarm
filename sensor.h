@@ -1,6 +1,6 @@
 /*
-  state.cpp
-  system states
+  sensor.h
+  sensors
   State class manages system status display (LEDs)
   Don Thompson
   Raynham MA
@@ -19,34 +19,34 @@
   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#ifndef __STATE_H__
-#define __STATE_H__
-#define SECS_IN_DAY 86400
-#define SECS_IN_HOUR 3600
-#define SECS_IN_MINUTE 60
+#ifndef __SENSOR_H__
+#define __SENSOR_H__
 
 #include "application.h"
+#include "util.h"
 #include "parms.h"
+#include "OW.h"
 
-typedef enum {sys_undefined=0, sys_starting=1,sys_configure=2,sys_fail=3,sys_running=4};
-//sys status bit definitions:
-// 1 == HDW FAIL
-// 2 == DS2482
-// 4 == EEPROMCFG
-// 8 == OWDEVICE
-typedef enum {fail_hardware=1, fail_ds2482=2, fail_eeprom=4, fail_owdevice=8};
-class State {
+//sensor devices will all be loaded from EEPROM
+//and added to a std::list
+//1-wire devices are checked for presence
+class Sensor {
 public:
-  State();
-  void sysState(uint8_t);
-  uint8_t sysStatus();
-  void addStatus(uint8_t);
-  char* upTime(char *);
-  int upTime();
+  Sensor(OW *ow) {
+    // Move this to function in configuration read
+    p_ow = ow;
+    pinMode(LOOP_SENSOR_PIN, INPUT);
+    pinMode(MOTION_LOOP_SENSOR_PIN,INPUT);
+    pinMode(TAMPER_PIN,INPUT);
+    pinMode(MESSAGE_PIN,OUTPUT);
+  }
+  bool readSensor(device_t &d);
+  void setSensorIndicator(device_t d, uint8_t val);
+  float readTemperature();
+  float getLastTemperature();
+  char* romFormat(char *buf, uint8_t rom[]);
 private:
-  int ledNoticeState = 0;
-  uint8_t curState;
-  uint8_t status;
-  int startTime;
+  OW *p_ow;
+  float last_temp;  //used ??
 };
 #endif
