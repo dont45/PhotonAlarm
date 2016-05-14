@@ -23,26 +23,30 @@
 #include "parms.h"
 
 #define HALT while(1)
-typedef enum {UNDEFINED=0, SWITCH=1, OW_SENSOR=2, OW_INDICATOR=3, OW_RELAY=4, OW_THERMOMETER=5,
-              MCP9808_THERMOMETER=6, USER_KEY=7, MASTER_KEY=8} SENSOR_TYPE;
+//TO DO: reorder these so > xx = always present ??
+typedef enum {UNDEFINED=0, USER_KEY=1, MASTER_KEY=2, SWITCH=3, OW_SENSOR=4, OW_INDICATOR=5, OW_RELAY=6, OW_THERMOMETER=7,
+              MCP9808_THERMOMETER=8, SUB_OIL_GAUGE=9, SUB_CAR_MONITOR=10} SENSOR_TYPE;
 typedef enum {DEV_MISSING=0, DEV_PRESENT=1, DEV_UNKNOWN=2};
 typedef enum {SENSOR_DISABLED=0, SENSOR_ACTIVE=1};
 typedef enum {SENSOR_CLEAR, SENSOR_TRIPPED};
 typedef enum {SENSE_NORMAL_CLOSED=0, SENSE_NORMAL_OPEN=1};
 const char* sensor_status_def[3] = {"missing", "present", "unknown"};
 const char* sensor_state_def[2] = {"deactivated", "active"};
-const char* sensor_use_def[9] = {"undefined","switch","ow switch","ow indicator","ow relay","ow thermometer",
-          "mcp9808 therm","user key", "master key"};
+const char* sensor_use_def[11] = {"undefined","user key", "master key","switch","ow switch","ow indicator","ow relay","ow thermometer",
+          "mcp9808 therm", "oil level", "remote monitor"};
 const char* sensor_sense_def[2] = {"normal closed", "normal open"};
-const char* sensor_use_descr[] = {"undefined","switch", "ow-sensor","ow-indicator","ow-relay","ow-thermometer",
-              "mcp9808-thermometer","user-key","master-key" };
+const char* sensor_use_descr[] = {"undefined","user-key","master-key","switch", "ow-sensor","ow-indicator","ow-relay","ow-thermometer",
+              "mcp9808-thermometer","sub-oil-level","remote car monitor" };
+//device flag bit definitions
+//YELLOW = caution state, i.e. oil level warning; RED = critical state, i.e. OIL critically low
+typedef enum {DEVICE_PRIORITY=0, DEVICE_YELLOW=1, DEVICE_RED=2};
 
 struct state_t
 {
   uint8_t magic;
   uint8_t current_state;
-  //uint8_t tripped;
   uint8_t alert_hours;
+  float oil_gallons; // or level ??
 }
 alarm_saved_state;
 #define ALARM_STATE_ADDRESS 0
@@ -53,10 +57,12 @@ struct config_t
 {
   uint8_t magic;
   uint8_t dev_addr[MAXDEVICE][8];
+  uint8_t dev_flags[MAXDEVICE];
   uint8_t port[MAXDEVICE];
   uint8_t use[MAXDEVICE];
   uint8_t sense[MAXDEVICE];
-  int alert_min[MAXDEVICE];  // for thermometers
+  uint8_t alert_min[MAXDEVICE];  // for thermometers
+  uint8_t alert_max[MAXDEVICE];  // for thermometers
   char name[MAXDEVICE][SENSOR_NAME_SIZE+1];
 };  //configuration - move to class, not global
 
@@ -66,14 +72,16 @@ typedef struct device_t
 {
     uint8_t idx;          // index: v0.1.6
     uint8_t status;       // missing, present, unknown
+    uint8_t dev_flags;    //
     uint8_t state;        //disabled, active
 		uint8_t dev_rom[8];
     uint8_t port;         //PIO-A==0, PIO-B==1
     uint8_t dev_use;
     uint8_t sense;        //sensor NC or NO
-    int alert_min;        // 0 ==> no alert_point, < this ==> do alert
-    // and max ?
+    uint8_t alert_min;    // 0 ==> no alert_point, <= this ==> do alert
+    uint8_t alert_max;    // 0 ==> no alert_point, >= this ==> do alert
     float dev_reading;    //last PIO, temp, etc.
+    int dev_last_read;    //timestamp of last reading
     String name;
     uint8_t tripped;      //checkSensor says tripped
     uint8_t reported;     //reported by alert
@@ -101,10 +109,11 @@ template <class T> int EEPROM_readAnything(int ee, T& value)
 
 // Log message to cloud, message is a printf-formatted string
 // e.g. debug("ledPin = %d", ledPin);
+/* xxxxyy
 void debug(String message, int value) {
     char msg [50];
     sprintf(msg, message.c_str(), value);
     Spark.publish("DEBUG", msg);
 }
-
+*/
 #endif

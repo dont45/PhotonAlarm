@@ -28,9 +28,10 @@
 #define MAX_MESSAGE_PER_HOUR 100    //absolute maximum of pushover messages per hour
 #define CLEARING_COUNT_MAX 60       //no. loops passes in notifying state
 #define MAXDEVICE 4                 //simple testing
-#define MAX_ALLOW_OWDEV  10         //absolute maximum of ow devices
-#define EE_MAGIC_CONFIG 0X32        // change this to write new test config
-#define EE_MAGIC_STATE 0x9d
+#define DEVICE_TIMEOUT 1800         // HALF HOUR
+#define MAX_ALLOW_OWDEV  14         //absolute maximum of ow devices
+#define EE_MAGIC_CONFIG 0X3A        // change this to write new test config
+#define EE_MAGIC_STATE 0x9e
 #define FMLY_IBUTTON 0x01           //NOT USED ???
 #define FMLY_2405 0x05
 #define FMLY_2406 0x12              //and FMLY_2407

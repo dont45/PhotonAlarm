@@ -44,9 +44,11 @@ public:
   void setSensorIndicator(device_t d, uint8_t val);
   float readTemperature();
   float getLastTemperature();
+
   char* romFormat(char *buf, uint8_t rom[]);
 private:
   OW *p_ow;
   float last_temp;  //used ??
+  float last_oil_level;
 };
 #endif

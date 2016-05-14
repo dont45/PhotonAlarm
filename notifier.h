@@ -10,14 +10,24 @@
  #include "alarm.h"
  #include <queue>
  #include <list>
+ #include <map>
+
+struct Message {
+  uint8_t priority;
+  String message_text;
+};
 
  class Notifier {
  public:
-   Notifier(char *event_name, Sensor *s) {
-     // move upd to Alarm class ???
+   Notifier(char *event_name, char *priority_event_name, Sensor *s) {
+     // move upd to Alarm class ??
      Particle.function("upd", &Notifier::upd, this);
-     Particle.function("set", &Notifier::set, this);
+     //Particle.function("set", &Notifier::set, this);  //old xxxxyy, remove
+     Particle.function("request", &Notifier::request, this);
+     Particle.function("confirm", &Notifier::confirm, this);
+     //Particle.function("dump", &Notifier::dump, this); xxxxyy
      strcpy(webhook_id, event_name);
+     strcpy(priority_webhook_id, priority_event_name);
      p_sensor = s;
      msg_limit = 0;        //limit mesages per hour
      secret_timeout = 0;   //loop passes to timeout secret
@@ -30,9 +40,13 @@
    int upd(String command);
    int set(String);
    String updData();
-   void sendMessage(char* msg);  //send message to pushover
-   void sendMessage(String);
-   void queueMessage(String);    //add message to queue
+   int request(String);
+   int confirm(String);
+   int do_command(String);
+   //int dump(String); xxxxyy
+   void sendMessage(uint8_t priority, char* msg);  //send message to pushover
+   void sendMessage(uint8_t, String);
+   void queueMessage(uint8_t, String);    //add message to queue
    bool msgqueueEmpty();
    void dequeMessage(void);      //get next message from queue and send
    void hourlyReset();
@@ -44,8 +58,11 @@
    void checkTime();
 
  private:
-   std::queue<String> msg_queue;
+   std::map <int, String> command_list;
+   //std::queue<String> msg_queue;
+   std::queue<Message> message_queue; // replaces msg_queue (with priority)
    char webhook_id[20];
+   char priority_webhook_id[20];
    char event_message[1000];   //??reduce size of this ??
    // to do, clear secret after xx loops ??? DEBUG
    int secret;

@@ -32,6 +32,7 @@ public:
     firstTrippedSensor=0;  //?? use tripedList
     clearing_cnt = 0;
     p_config = new config_t;
+    priority = 0;
   }
   ~Alarm();
   bool setState(uint8_t new_state);
@@ -58,14 +59,18 @@ public:
   void blinkTimeout();
   bool alarmNotifying();
   String getPendingMessage();
+  uint8_t getPriority();
   bool checkSensors(void);
   String getLastTemperature();  //testing
   bool clearSensorReported();
   bool allClear();
   int clearingCount();
   device_t* getDevice(uint8_t); //v0.1.6
+  bool setLastRemote(uint8_t, float);
+
   void setDeviceActive(device_t *d, bool);
   void setDeviceAlertMin(device_t *d, int p3);
+  void setDeviceAlertMax(device_t *d, int p3);
 private:
   config_t configuration;
   config_t *p_config;
@@ -77,6 +82,7 @@ private:
   uint8_t firstTrippedSensor;
   int clearing_cnt;
   String message;  //??name
+  uint8_t priority;
   String trippedString;
 };
 #endif
