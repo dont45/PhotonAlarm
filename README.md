@@ -12,8 +12,15 @@ The software utilizes the power of the Photon Particle build system which provid
 
 Currently the configuration is generated into the Photon's eeprom vi a hard-coded sensor list (writeTestConfiguration).  A future version will build a new configuration by 1) detection of a master key (1-wire iButton) at reset,  2) scanning the 1-wire bus for devices and creating the device list, and 3) assignment of name and function for each device detected via the iPhone app.  Master keys are created by having two iButton devices present at reset.  This provides a simple three-step initial (or updated) setup process.  1) Create the master keys, 2) Scan for sensors, and 3) Edit the sensor's name and function.
 
-Currently the code contains heavy use of various debug messages via Serial.print.  These are controlled by a couple of #defines which will ultimately be removed.
+Currently the code contains heavy use of various debug messages via Serial.print which are enabled by a couple of #defines which will ultimately be removed in the future.
+
+
+
+D Thompson has demo video of the companion iPhone app on YouTube:
+
+“photonAlarm iPhone app demo” — iPhone app which monitors and manages a photonAlarm system.
+
 
 Don Thompson
-March 6, 2016
+May 14, 2016
 
