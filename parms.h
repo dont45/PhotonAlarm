@@ -8,6 +8,31 @@
 #define EDT_OFFSET -4
 #define EST_OFFSET -5
 
+//#define HOUSE_CONFIGURATION         //use this for HOUSE
+//which configuration?  (ONLY ONE)
+#define SHED_CONFIGURATION
+//bench-board test configuration
+#ifdef TEST_CONFIGURATION
+#define MAXDEVICE 4
+#define TEST_SENSOR_1
+#endif
+//config for HOUSE
+#ifdef HOUSE_CONFIGURATION
+#define MAXDEVICE 4
+#define TEST_SENSOR_1
+#endif
+//config for neshed
+//#ifdef SHED_CONFIGURATION
+#define MAXDEVICE 4
+//#define TEST_SENSOR_1
+//#define TEST_SENSOR_2
+//#define TEST_SENSOR_11
+//#define TEST_SENSOR_12
+//#endif
+
+#define EE_MAGIC_CONFIG 0X40        // change this to write new test config
+#define EE_MAGIC_STATE 0x9e
+
 #define SENSOR_LIST_SCAN
 #define ALERT_HOURS 3               //no longer used ??
 #define LOOP_DELAY_TIME 1000        //Delay ms between loop passes
@@ -27,11 +52,8 @@
 #define MESSAGE_LOOP_DELAY 1        //number of loop passes btw notifications = 5secU
 #define MAX_MESSAGE_PER_HOUR 100    //absolute maximum of pushover messages per hour
 #define CLEARING_COUNT_MAX 60       //no. loops passes in notifying state
-#define MAXDEVICE 4                 //simple testing
 #define DEVICE_TIMEOUT 1800         // HALF HOUR
 #define MAX_ALLOW_OWDEV  14         //absolute maximum of ow devices
-#define EE_MAGIC_CONFIG 0X3A        // change this to write new test config
-#define EE_MAGIC_STATE 0x9e
 #define FMLY_IBUTTON 0x01           //NOT USED ???
 #define FMLY_2405 0x05
 #define FMLY_2406 0x12              //and FMLY_2407
@@ -45,5 +67,6 @@
 #define SENSOR_NAME_SIZE 16
 //#define SHORT_NAME_SIZE 2
 #define ONE_DAY_MILLIS (24 * 60 * 60 * 1000)
-
+//#define WD_EN 5                   // WatchDog enable PIN
+//#define WD_WDI 6                  // WatchDog Timer Reset Input
 #endif

@@ -27,11 +27,11 @@
 typedef enum {UNDEFINED=0, USER_KEY=1, MASTER_KEY=2, SWITCH=3, OW_SENSOR=4, OW_INDICATOR=5, OW_RELAY=6, OW_THERMOMETER=7,
               MCP9808_THERMOMETER=8, SUB_OIL_GAUGE=9, SUB_CAR_MONITOR=10} SENSOR_TYPE;
 typedef enum {DEV_MISSING=0, DEV_PRESENT=1, DEV_UNKNOWN=2};
-typedef enum {SENSOR_DISABLED=0, SENSOR_ACTIVE=1};
+typedef enum {SENSOR_DISABLED=0, SENSOR_ACTIVE=1, SENSOR_INACTIVE=2};
 typedef enum {SENSOR_CLEAR, SENSOR_TRIPPED};
 typedef enum {SENSE_NORMAL_CLOSED=0, SENSE_NORMAL_OPEN=1};
 const char* sensor_status_def[3] = {"missing", "present", "unknown"};
-const char* sensor_state_def[2] = {"deactivated", "active"};
+const char* sensor_state_def[3] = {"deactivated", "active","inactive"};
 const char* sensor_use_def[11] = {"undefined","user key", "master key","switch","ow switch","ow indicator","ow relay","ow thermometer",
           "mcp9808 therm", "oil level", "remote monitor"};
 const char* sensor_sense_def[2] = {"normal closed", "normal open"};

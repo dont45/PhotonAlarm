@@ -12,7 +12,9 @@
  #include <list>
  #include <map>
 
+typedef enum {NO_HEADER=0, SHORT_HEADER=1, FULL_HEADER=2};
 struct Message {
+  uint8_t header_style;
   uint8_t priority;
   String message_text;
 };
@@ -44,9 +46,9 @@ struct Message {
    int confirm(String);
    int do_command(String);
    //int dump(String); xxxxyy
-   void sendMessage(uint8_t priority, char* msg);  //send message to pushover
-   void sendMessage(uint8_t, String);
-   void queueMessage(uint8_t, String);    //add message to queue
+   void sendMessage(uint8_t header, uint8_t priority, char* msg);  //send message to pushover
+   void sendMessage(uint8_t, uint8_t, String);
+   void queueMessage(uint8_t, uint8_t, String);    //add message to queue
    bool msgqueueEmpty();
    void dequeMessage(void);      //get next message from queue and send
    void hourlyReset();
@@ -58,6 +60,7 @@ struct Message {
    void checkTime();
 
  private:
+   const static String commands;
    std::map <int, String> command_list;
    //std::queue<String> msg_queue;
    std::queue<Message> message_queue; // replaces msg_queue (with priority)
