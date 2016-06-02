@@ -93,6 +93,8 @@
 #define SERIAL_DEBUG
 #define SERIAL_DEBUGXX
 //#define SERIAL_WAIT
+#define HARDWARE_WATCHDOG
+
 #include "application.h"
 #include <queue>
 #include <list>
@@ -103,6 +105,9 @@
 #include "sensor.h"
 #include "math.h"
 #include "stdlib.h"
+#ifdef HARDWARE_WATCHDOG
+#include "hwd.h"
+#endif
 
 //STARTUP(System.enableFeature(FEATURE_RETAINED_MEMORY));
 //retained uint8_t testcurState;
@@ -119,7 +124,6 @@ double gallonsO;                              // published oil gallons (demo)
 double remote_temp;                           // published as temprmt
 String stateA;
 
-//ApplicationWatchdog wd(60000, System.reset);
 Adafruit_MCP9808 mcp9808;
 OW ow(0);       //default 0 is 0x18 !!
 // OW ow1(1);   //NO! testing second ds2483 for iButtons
@@ -919,7 +923,9 @@ uint8_t Alarm::wiredeviceAquire() {
 bool Alarm::writeTestConfiguration() {
   int i = 0;
   configuration.magic = EE_MAGIC_CONFIG;
+  //using XXX_COFIGURATION from parms.h
   //test config for neshed
+  /*
   #define TEST_SENSOR_1
   #define TEST_SENSOR_2
   //#define TEST_SENSOR_3
@@ -932,7 +938,7 @@ bool Alarm::writeTestConfiguration() {
   //#define TEST_SENSOR_10
   #define TEST_SENSOR_11
   #define TEST_SENSOR_12
-
+*/
   //Sensor 1
 #ifdef TEST_SENSOR_1
   configuration.dev_addr[i][0] = MCP9808_I2CADDR;
@@ -1697,7 +1703,6 @@ int Notifier::do_command(String cmd_line) {
           }
           else
               sprintf(msg, "NO SENSOR# %d", p1);
-          delay(65000);  //test: force watchdog timeout  <<<=== REMOVE
           queueMessage(SHORT_HEADER,1,msg);
           return 1;
           break;
@@ -1892,6 +1897,7 @@ void reset_handler()
 void watchdog_reset()
 {
     // tell the world what we are doing, doesn't work ??
+    // BUG: does reset but not notifications
     Particle.publish("reset", "Watchdog timed out, reset!");
     notify.sendMessage(NO_HEADER,1,"WATCHDOG SYSTEM RESET");
     System.reset();
@@ -1900,6 +1906,9 @@ void watchdog_reset()
 //define our own function so we can send alert on reset
 ApplicationWatchdog wd(60000, watchdog_reset);
 //ApplicationWatchdog wd(60000, System.reset);
+#ifdef HARDWARE_WATCHDOG
+HWD hwd;
+#endif
 
 void setup() {
   // register the reset handler
@@ -2059,6 +2068,9 @@ void setup() {
     alarm1.setLastRemote(SUB_OIL_GAUGE, 101.0);   //should set as inactive
     alarm1.setLastRemote(SUB_CAR_MONITOR,  72.0);
     digitalWrite(MESSAGE_PIN, LOW);
+#ifdef HARDWARE_WATCHDOG
+    hwd.enable();
+#endif
 }
 
 void loop() {
@@ -2106,4 +2118,7 @@ void loop() {
     temperatureF = sensor.getLastTemperature();
     delay(LOOP_DELAY_TIME);
     //wd.checkin(); // done automatically at end of each loop
+#ifdef HARDWARE_WATCHDOG
+    hwd.checkin();
+#endif
 }
